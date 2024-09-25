@@ -1,32 +1,25 @@
-import {
-  App,
-  FuzzySuggestModal,
-  ItemView,
-  Notice,
-  Plugin,
-  PluginSettingTab,
-  Setting,
-  TFile,
-} from "obsidian";
+import {App, FuzzySuggestModal, ItemView, Notice, Plugin, PluginSettingTab, Setting, TFile,} from "obsidian";
 
-import { AllCanvasNodeData } from "obsidian/canvas";
+import {AllCanvasNodeData} from "obsidian/canvas";
 
 interface CanvaSearchSettings {
   searchText: boolean;
+	scaleFactor: number;
 }
 
 const DEFAULT_SETTINGS: CanvaSearchSettings = {
-  searchText: false,
+	searchText: false,
+	scaleFactor: 1,
 };
 
 var current_index: [AllCanvasNodeData, string][];
 
-function focusOnNode(canvas: any, node: any) {
+function focusOnNode(canvas: any, node: any, scaleFactor: number) {
   canvas.zoomToBbox({
-    minX: node.x - node.width * 1,
-    minY: node.y - node.height * 1,
-    maxX: node.x + node.width * 1,
-    maxY: node.y + node.height * 1,
+	  minX: node.x - node.width * 1 * scaleFactor,
+	  minY: node.y - node.height * 1 * scaleFactor,
+	  maxX: node.x + node.width * 1 * scaleFactor,
+	  maxY: node.y + node.height * 1 * scaleFactor,
   });
   let node_full = canvas.nodes.get(node.id);
   canvas.deselectAll();
@@ -86,7 +79,7 @@ export default class CanvaSearch extends Plugin {
         const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
         if (canvasView?.getViewType() === "canvas") {
           current_index = await this.index_canvas_notes(this.settings.searchText);
-          new CanvaSearchModal(this.app).open();
+			new CanvaSearchModal(this).open();
         }
         else {
           this.openSearchBar()
@@ -111,12 +104,16 @@ export default class CanvaSearch extends Plugin {
 }
 
 class CanvaSearchModal extends FuzzySuggestModal<[AllCanvasNodeData, string]> {
-  getActiveCanvas(): any {
+	plugin: CanvaSearch;
+
+	getActiveCanvas(): any {
     const maybeCanvasView = this.app.workspace.activeLeaf?.view;
     return maybeCanvasView ? (maybeCanvasView as any)["canvas"] : null;
   }
-  constructor(app: App) {
-    super(app);
+
+	constructor(plugin: CanvaSearch) {
+    super(plugin.app);
+		this.plugin = plugin;
   }
 
   getItems(): [AllCanvasNodeData, string][] {
@@ -152,15 +149,15 @@ class CanvaSearchModal extends FuzzySuggestModal<[AllCanvasNodeData, string]> {
     switch (node_data.type) {
       case "file":
         new Notice(`Selected ${node_data.file}`);
-        focusOnNode(this.getActiveCanvas(), node_data);
+		  focusOnNode(this.getActiveCanvas(), node_data, this.plugin.settings.scaleFactor);
         break;
       case "group":
         new Notice(`Selected ${node_data.file}`);
-        focusOnNode(this.getActiveCanvas(), node_data);
+		  focusOnNode(this.getActiveCanvas(), node_data, this.plugin.settings.scaleFactor);
         break;
       case "text":
         new Notice(`Selected ${node_data.text}`);
-        focusOnNode(this.getActiveCanvas(), node_data);
+		  focusOnNode(this.getActiveCanvas(), node_data, this.plugin.settings.scaleFactor);
         break;
       case "link":
         new Notice(`Selected ${node_data.url}`);
@@ -186,6 +183,11 @@ class CanvaSearchSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
+	async updateScaleFactor(newScaleFactor: number) {
+		this.plugin.settings.scaleFactor = newScaleFactor;
+		await this.plugin.saveSettings();
+	}
+
   display(): void {
     const { containerEl } = this;
 
@@ -203,5 +205,17 @@ class CanvaSearchSettingTab extends PluginSettingTab {
                   await this.plugin.saveSettings();
         });
       });
+	  new Setting(containerEl)
+		  .setName("Scale Factor")
+		  .setDesc("Set the scale factor for focusing on a node.")
+		  .addText(text => {
+			  text.setValue(this.plugin.settings.scaleFactor.toString())
+				  .onChange(async (value) => {
+					  const numValue = parseFloat(value);
+					  if (!isNaN(numValue)) {
+						  await this.updateScaleFactor(numValue);
+					  }
+				  });
+		  });
   }
 }

@@ -1,5 +1,5 @@
 {
-	"name": "simple-canvasearch",
+	"name": "canvas-search",
 	"version": "0.1.0",
 	"description": "Quickly fuzzy-search and shift focus to notes or cards within the currently opened canvas.",
 	"main": "main.js",
